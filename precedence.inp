@@ -1,0 +1,13 @@
+INTEGER i j k
+BOOLEAN p q r
+BEGIN
+i := 1; j := 2; k := 3; p := TRUE; q := FALSE; r := TRUE;
+WRITE
+      k * 1  -  j * i   >   i + j + k * i
+    AND
+      k   <   i + j
+  OR
+    p AND NOT q
+  OR
+    r AND i = j - k AND NOT (k + i > j - i * i)
+END .

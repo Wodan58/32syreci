@@ -1,0 +1,18 @@
+factor ::= variable | number | "FALSE" | "TRUE" | "NOT" factor | "(" expr2 ")"
+term1  ::= factor [ ( "*" | "/" | "MOD" ) factor ]
+expr1  ::= term1 [ ( "+" | "-" ) term1 ]
+compar ::= expr1 [ ( "<" | "=" | ">" ) expr1 ]
+term2  ::= compar [ "AND" compar ]
+sexpr  ::= term2 [ "OR" term2 ]
+expr2  ::= sexpr [ "IFF" sexpr ]
+statement ::=	variable ":=" expr2 |
+		procedure |
+		"IF" expr2 "THEN" statementseq "ENDIF" |
+		"WHILE" expr2 "DO" statementseq "ENDWHILE"
+statementseq ::= statement [ ";" statement ]
+body ::= "BEGIN" statementseq "END"
+program ::= [ ( "BOOLEAN" | "INTEGER" ) [ identifier ] |
+		"PROCEDURE" identifier
+		[ ( "BOOLEAN" | "INTEGER" ) [ identifier ] ]
+		body ]
+		body "."
