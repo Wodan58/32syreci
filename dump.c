@@ -1,13 +1,15 @@
 /*
     module  : dump.c
-    version : 1.2
-    date    : 07/11/22
+    version : 1.3
+    date    : 09/05/22
 */
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 #define MAXSTR	80
 #define INSCNT	25
+
 #define inputfile "32syreci.tmp"
 
 typedef enum {
@@ -68,7 +70,7 @@ char *opstrings[] = {
 
 typedef struct instruction {
     operator op;
-    long adr1, adr2;
+    int64_t adr1, adr2;
 } instruction;
 
 /*
@@ -77,8 +79,8 @@ typedef struct instruction {
 int main()
 {
     int i;
-    long l;
     FILE *fp;
+    int64_t l;
     instruction ins;
     char str[MAXSTR];
 
@@ -86,8 +88,8 @@ int main()
 	fprintf(stderr, "%s cannot create\n", inputfile);
 	return 1;
     }
-    while (fscanf(stdin, "%ld %s %ld %ld", &l, str, &ins.adr1, &ins.adr2) == 4)
-    {
+    while (scanf("%" SCNd64 "%s %" SCNd64 "%" SCNd64,
+		&l, str, &ins.adr1, &ins.adr2) == 4) {
 	for (i = 0; i < INSCNT; i++)
 	    if (!strcmp(str, opstrings[i]))
 		break;

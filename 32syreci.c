@@ -1,14 +1,15 @@
 /*
     module  : 32syreci.c
-    version : 1.3
-    date    : 07/11/22
+    version : 1.4
+    date    : 09/05/22
 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <inttypes.h>
 
-/* SYmboltable, RECursion, INTerpreter only,
-   interprets a file of instruction produced by syrecc */
+/* SYmboltable, RECursion, Interpreter only,
+   interprets a file of instructions produced by syrecc */
 
 #define inputfile "32syreci.tmp"
 
@@ -49,7 +50,7 @@ typedef enum {
 
 typedef struct instruction {
     operator op;
-    long adr1, adr2;
+    int64_t adr1, adr2;
 } instruction;
 
 static char *operator_NAMES[] = { "ADD", "SUB", "MUL", "DVD", "MDL", "EQL",
@@ -57,156 +58,182 @@ static char *operator_NAMES[] = { "ADD", "SUB", "MUL", "DVD", "MDL", "EQL",
     "LOADIMMED", "STORGLOBL", "STORLOCAL", "WRITEBOOL", "WRITEINT", "CAL",
     "RET", "JMP", "JIZ", "HLT" };
 
+void debug(instruction *pc, instruction *code)
+{
+    printf("%12" PRId64 "%12.12s%12" PRId64 "%12" PRId64 "\n",
+	pc - code, operator_NAMES[pc->op], pc->adr1, pc->adr2);
+}
+
 int main(int argc, char *argv[])
 { /* main */
-    FILE *infile;
-    instruction code[maxcode];
-    long pc;
+    FILE *fp;
+    instruction code[maxcode], *pc;
 
-    long stack[maxstack + 1];
-    long stacktop = 0;
-    long reg[topregister + 1];
-    long baseregister = 0;
+    int64_t stack[maxstack + 1];
+    int64_t stacktop = 0;
+    int64_t reg[topregister + 1];
+    int64_t baseregister = 0;
 
     printf("SYRECI ...\n");
 
-    if ((infile = fopen(inputfile, "rb")) == NULL) {
+    if ((fp = fopen(inputfile, "rb")) == NULL) {
 	fprintf(stderr, "%s (file not found)\n", inputfile);
 	exit(EXIT_FAILURE);
     }
-    for (pc = 1; fread(&code[pc], sizeof(instruction), 1, infile); pc++) {
+    for (pc = &code[1]; fread(pc, sizeof(instruction), 1, fp); pc++)
 	if (showcode)
-	    printf("%12ld%12.12s%12ld%12ld\n", pc,
-		operator_NAMES[code[pc].op], code[pc].adr1, code[pc].adr2);
-    }
-    fclose(infile);
+	    debug(pc, code);
+    fclose(fp);
 
     /* interpret: */
     if (tracing)
 	printf("interpreting ...\n");
-    for (pc = 1;;) {
-again:
+    pc = &code[1];
+    for (;;) {
 	if (tracing)
-	    printf("%12ld%12.12s%12ld%12ld\n", pc,
-		operator_NAMES[code[pc].op], code[pc].adr1, code[pc].adr2);
-	switch (code[pc].op) {
+	    debug(pc, code);
+	switch (pc->op) {
 	case add:
-	    reg[code[pc].adr1] += reg[code[pc].adr2];
+	    reg[pc->adr1] += reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case sub:
-	    reg[code[pc].adr1] -= reg[code[pc].adr2];
+	    reg[pc->adr1] -= reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case mul:
-	    reg[code[pc].adr1] *= reg[code[pc].adr2];
+	    reg[pc->adr1] *= reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case dvd:
-	    reg[code[pc].adr1] /= reg[code[pc].adr2];
+	    reg[pc->adr1] /= reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case mdl:
-	    reg[code[pc].adr1] %= reg[code[pc].adr2];
+	    reg[pc->adr1] %= reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case eql:
-	    reg[code[pc].adr1] = reg[code[pc].adr1] == reg[code[pc].adr2];
+	    reg[pc->adr1] = reg[pc->adr1] == reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case neq:
-	    reg[code[pc].adr1] = reg[code[pc].adr1] != reg[code[pc].adr2];
+	    reg[pc->adr1] = reg[pc->adr1] != reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case gtr:
-	    reg[code[pc].adr1] = reg[code[pc].adr1] > reg[code[pc].adr2];
+	    reg[pc->adr1] = reg[pc->adr1] > reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case geq:
-	    reg[code[pc].adr1] = reg[code[pc].adr1] >= reg[code[pc].adr2];
+	    reg[pc->adr1] = reg[pc->adr1] >= reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case lss:
-	    reg[code[pc].adr1] = reg[code[pc].adr1] < reg[code[pc].adr2];
+	    reg[pc->adr1] = reg[pc->adr1] < reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case leq:
-	    reg[code[pc].adr1] = reg[code[pc].adr1] <= reg[code[pc].adr2];
+	    reg[pc->adr1] = reg[pc->adr1] <= reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case orr:
-	    reg[code[pc].adr1] = reg[code[pc].adr1] == 1 ||
-				 reg[code[pc].adr2] == 1;
+	    reg[pc->adr1] = reg[pc->adr1] == 1 || reg[pc->adr2] == 1;
+	    pc++;
 	    break;
 
 	case neg:
-	    reg[code[pc].adr1] = 1 - reg[code[pc].adr1];
+	    reg[pc->adr1] = 1 - reg[pc->adr1];
+	    pc++;
 	    break;
 
 	case loadglobl:
-	    reg[code[pc].adr1] = stack[code[pc].adr2];
+	    reg[pc->adr1] = stack[pc->adr2];
+	    pc++;
 	    break;
 
 	case loadlocal:
-	    reg[code[pc].adr1] = stack[code[pc].adr2 + baseregister];
+	    reg[pc->adr1] = stack[pc->adr2 + baseregister];
+	    pc++;
 	    break;
 
 	case loadimmed:
-	    reg[code[pc].adr1] = code[pc].adr2;
+	    reg[pc->adr1] = pc->adr2;
+	    pc++;
 	    break;
 
 	case storglobl:
-	    stack[code[pc].adr1] = reg[code[pc].adr2];
+	    stack[pc->adr1] = reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case storlocal:
-	    stack[code[pc].adr1 + baseregister] = reg[code[pc].adr2];
+	    stack[pc->adr1 + baseregister] = reg[pc->adr2];
+	    pc++;
 	    break;
 
 	case writebool:
-	    puts(reg[code[pc].adr2] == 1 ? "TRUE" : "FALSE");
+	    puts(reg[pc->adr2] == 1 ? "TRUE" : "FALSE");
+	    pc++;
 	    break;
 
 	case writeint:
-	    printf("%12ld\n", reg[code[pc].adr2]);
+	    printf("%12" PRId64 "\n", reg[pc->adr2]);
+	    pc++;
 	    break;
-
-	case jmp:
-	    pc = code[pc].adr1;
-	    goto again;
-
-	case jiz:
-	    if (reg[code[pc].adr2] == 0) {
-		pc = code[pc].adr1;
-		goto again;
-	    }
-	    break;
-
-	case hlt:
-	    pc = 0;
-	    goto done;
 
 	case cal:
-	    if (stacktop + code[pc].adr2 > maxstack) {
-		printf("stack overflow, PC=%6ld, execution aborted\n", pc);
-		goto done;
+	    if (stacktop + pc->adr2 > maxstack) {
+		printf("stack overflow, PC=%" PRId64 ", execution aborted\n",
+			pc - code);
+		exit(EXIT_FAILURE);
 	    }
 	    stack[stacktop + 1] = baseregister;
-	    stack[stacktop + 2] = pc + 1;
+	    stack[stacktop + 2] = pc + 1 - code;
 	    baseregister = stacktop;
-	    stacktop += code[pc].adr2;
-	    pc = code[pc].adr1;
-	    goto again;
+	    stacktop += pc->adr2;
+	    pc = &code[pc->adr1];
+	    break;
 
 	case ret:
 	    stacktop = baseregister;
 	    baseregister = stack[stacktop + 1];
-	    pc = stack[stacktop + 2];
-	    goto again;
+	    pc = &code[stack[stacktop + 2]];
+	    break;
+
+	case jmp:
+	    pc = &code[pc->adr1];
+	    break;
+
+	case jiz:
+	    if (reg[pc->adr2] == 0)
+		pc = &code[pc->adr1];
+	    else
+		pc++;
+	    break;
+
+	case hlt:
+	    exit(EXIT_SUCCESS);
+
+	default:
+#ifdef _MSC_VER
+	    __assume(0);
+#else
+	    __builtin_unreachable();
+#endif
 	}
-	pc++;
     }
-done:
     exit(EXIT_SUCCESS);
 } /* main */
 

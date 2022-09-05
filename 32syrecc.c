@@ -1,12 +1,13 @@
 /*
     module  : 32syrecc.c
-    version : 1.1
-    date    : 07/11/22
+    version : 1.2
+    date    : 09/05/22
 */
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 /* ----------------------------- D E F I N E S ----------------------------- */
 
@@ -104,7 +105,7 @@ typedef struct symbol_t {
 
 typedef struct instruction {
     operator op;
-    long adr1, adr2;
+    int64_t adr1, adr2;
 } instruction;
 
 /* --------------------------- V A R I A B L E S --------------------------- */
@@ -167,7 +168,7 @@ void error(char *msg)
     fprintf(stderr, ", variable=%s, number=%d\n", val_variable, val_number);
 }
 
-void enterprog(operator op, long adr1, long adr2)
+void enterprog(operator op, int64_t adr1, int64_t adr2)
 {
     if (++code_idx >= MAXPRG) {
 	error("Exceeding code array");
@@ -800,7 +801,7 @@ int main()
 
     program();
     for (i = 1; i <= code_idx; i++)
-	printf("%8d%15s%10ld%10ld\n", i, operator_NAMES[code[i].op],
-		code[i].adr1, code[i].adr2);
+	printf("%8d%15s%12" PRId64 "%12" PRId64 "\n",
+		i, operator_NAMES[code[i].op], code[i].adr1, code[i].adr2);
     return 0;
 }

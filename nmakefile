@@ -1,0 +1,27 @@
+#
+#   module  : nmakefile
+#   version : 1.1
+#   date    : 09/05/22
+#
+CC = cl.exe
+CC_FLAGS = /nologo /W2 /EHsc /O2 /Gy /c
+
+LINK = link.exe
+LINK_FLAGS = /nologo
+
+all: 32syrecc.exe 32syreci.exe dump.exe
+
+32syrecc.exe: 32syrecc.obj
+	$(LINK) 32syrecc.obj $(LINK_FLAGS) -out:$@
+
+32syreci.exe: 32syreci.obj
+	$(LINK) 32syreci.obj $(LINK_FLAGS) -out:$@
+
+dump.exe: dump.obj
+	$(LINK) dump.obj $(LINK_FLAGS) -out:$@
+
+.c.obj:
+	$(CC) $(CC_FLAGS) $*.c /Fo$*.obj 
+
+clean:
+	del *.obj

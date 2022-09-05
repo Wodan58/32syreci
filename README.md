@@ -8,7 +8,7 @@ Changes
 -------
 
 The text doesn't come with a Pascal version of 32syrecc, the compiler that
-creates the file that 23syreci understands. But the text gives enough details.
+creates the file that 32syreci understands. But the text gives enough details.
 
 Installation
 ------------
