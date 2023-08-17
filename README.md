@@ -1,7 +1,7 @@
 32syreci
 --------
 
-A virtual machine from [Sympas](https://github.com/nickelsworth/sympas/blob/master/text/14-symbol-table-and-recursion.org), translated to C. The virtual
+A virtual machine from [Sympas](https://github.com/nickelsworth/sympas/blob/master/text/14-symboli-table-and-recursion.org), translated to C. The virtual
 machine is a register machine.
 
 Changes
@@ -18,5 +18,5 @@ Installation
 Running
 -------
 
-    ./syrecc factorial.inp | ./dump
-    ./syreci
+    ./32syrecc <factorial.inp | ./dump
+    ./32syreci

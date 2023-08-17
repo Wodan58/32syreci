@@ -1,17 +1,16 @@
 /*
     module  : 32syreci.c
-    version : 1.4
-    date    : 09/05/22
+    version : 1.5
+    date    : 08/17/23
 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <inttypes.h>
+#include "32syreci.h"
 
 /* SYmboltable, RECursion, Interpreter only,
    interprets a file of instructions produced by syrecc */
-
-#define inputfile "32syreci.tmp"
 
 #define showcode false
 #define tracing false
@@ -19,44 +18,6 @@
 #define maxcode 200
 #define maxstack 1000
 #define topregister 7
-
-typedef enum {
-    add,
-    sub,
-    mul,
-    dvd,
-    mdl,
-    eql,
-    neq,
-    gtr,
-    geq,
-    lss,
-    leq,
-    orr,
-    neg,
-    loadglobl,
-    loadlocal,
-    loadimmed,
-    storglobl,
-    storlocal,
-    writebool,
-    writeint,
-    cal,
-    ret,
-    jmp,
-    jiz,
-    hlt
-} operator;
-
-typedef struct instruction {
-    operator op;
-    int64_t adr1, adr2;
-} instruction;
-
-static char *operator_NAMES[] = { "ADD", "SUB", "MUL", "DVD", "MDL", "EQL",
-    "NEQ", "GTR", "GEQ", "LSS", "LEQ", "ORR", "NEG", "LOADGLOBL", "LOADLOCAL",
-    "LOADIMMED", "STORGLOBL", "STORLOCAL", "WRITEBOOL", "WRITEINT", "CAL",
-    "RET", "JMP", "JIZ", "HLT" };
 
 void debug(instruction *pc, instruction *code)
 {
@@ -67,6 +28,7 @@ void debug(instruction *pc, instruction *code)
 int main(int argc, char *argv[])
 { /* main */
     FILE *fp;
+    char *filename;
     instruction code[maxcode], *pc;
 
     int64_t stack[maxstack + 1];
@@ -76,8 +38,9 @@ int main(int argc, char *argv[])
 
     printf("SYRECI ...\n");
 
-    if ((fp = fopen(inputfile, "rb")) == NULL) {
-	fprintf(stderr, "%s (file not found)\n", inputfile);
+    filename = argc == 2 ? argv[1] : inputfile;
+    if ((fp = fopen(filename, "rb")) == NULL) {
+	fprintf(stderr, "%s (file not found)\n", filename);
 	exit(EXIT_FAILURE);
     }
     for (pc = &code[1]; fread(pc, sizeof(instruction), 1, fp); pc++)

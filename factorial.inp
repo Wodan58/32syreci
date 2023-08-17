@@ -2,24 +2,24 @@ INTEGER argument value
 
 PROCEDURE factorial
     INTEGER temporary
-    BEGIN
+BEGIN
     IF argument = 0 THEN
 	value := 1
-	ENDIF;
+    ENDIF;
     IF argument <> 0 THEN
 	temporary := argument;
 	argument := argument - 1;
 	factorial;
 	value := temporary * value;
 	argument := temporary
-	ENDIF
-    END
+    ENDIF
+END
 
 BEGIN
-argument := 0;
-WHILE argument <= 10 DO
-    factorial;
-    WRITE value;
-    argument := argument + 1
+    argument := 0;
+    WHILE argument <= 10 DO
+	factorial;
+	WRITE value;
+	argument := argument + 1
     ENDWHILE
 END .

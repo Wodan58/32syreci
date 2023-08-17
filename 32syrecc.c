@@ -1,13 +1,14 @@
 /*
     module  : 32syrecc.c
-    version : 1.2
-    date    : 09/05/22
+    version : 1.3
+    date    : 08/17/23
 */
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "32syreci.h"
 
 /* ----------------------------- D E F I N E S ----------------------------- */
 
@@ -67,34 +68,6 @@ enum {
     typ_moreeql		/* >= */
 };
 
-typedef enum {
-    add,
-    sub,
-    mul,
-    dvd,
-    mdl,
-    eql,
-    neq,
-    gtr,
-    geq,
-    lss,
-    leq,
-    orr,
-    neg,
-    loadglobl,
-    loadlocal,
-    loadimmed,
-    storglobl,
-    storlocal,
-    writebool,
-    writeint,
-    cal,
-    ret,
-    jmp,
-    jiz,
-    hlt
-} operator;
-
 /* ------------------------------- T Y P E S ------------------------------- */
 
 typedef struct symbol_t {
@@ -103,17 +76,7 @@ typedef struct symbol_t {
 	parm;	/* number of local variables */
 } symbol_t;
 
-typedef struct instruction {
-    operator op;
-    int64_t adr1, adr2;
-} instruction;
-
 /* --------------------------- V A R I A B L E S --------------------------- */
-
-static char *operator_NAMES[] = { "ADD", "SUB", "MUL", "DVD", "MDL", "EQL",
-    "NEQ", "GTR", "GEQ", "LSS", "LEQ", "ORR", "NEG", "LOADGLOBL", "LOADLOCAL",
-    "LOADIMMED", "STORGLOBL", "STORLOCAL", "WRITEBOOL", "WRITEINT", "CAL",
-    "RET", "JMP", "JIZ", "HLT" };
 
 char *keywords[] = {
     "AND",
@@ -152,6 +115,9 @@ symbol_t functions[MAXSYM], globals[MAXSYM], locals[MAXSYM];
 
 char val_variable[MAXVAR + 1];
 int linenum = 1, symbol, val_number;
+
+/* next available register number */
+int regnum;
 
 /* --------------------------- F U N C T I O N S --------------------------- */
 
@@ -372,12 +338,12 @@ digit:
     symbol = typ_number;		/* number */
 }
 
-void expr2(int, int *);
+void expr2(int *);	/* forward */
 
 /*
 factor ::= variable | number | "FALSE" | "TRUE" | "NOT" factor | "(" expr2 ")"
 */
-void factor(int regnum, int *type)
+void factor(int *type)
 {
     int index, found;
 
@@ -409,7 +375,7 @@ void factor(int regnum, int *type)
 	break;
     case typ_not:
 	getsym();
-	factor(regnum, type);
+	factor(type);
 	if (*type != 0)
 	    error("boolean type expected for operator not");
 	if (code[code_idx].op == loadimmed)
@@ -419,7 +385,7 @@ void factor(int regnum, int *type)
 	break;
     case '(':
 	getsym();
-	expr2(regnum, type);
+	expr2(type);
 	if (symbol != ')')
 	    error("')' expected at end of parenthesized expression");
 	getsym();
@@ -432,15 +398,16 @@ void factor(int regnum, int *type)
 /*
 term1  ::= factor [ ( "*" | "/" | "MOD" ) factor ]
 */
-void term1(int regnum, int *type)
+void term1(int *type)
 {
     int oper, type2;
 
-    factor(regnum, type);
+    factor(type); /* store first factor in current register */
     while (symbol == '*' || symbol == '/' || symbol == typ_mod) {
 	oper = symbol;
 	getsym();
-	factor(regnum + 1, &type2);
+	regnum++; /* store second factor in next register */
+	factor(&type2);
 	if (*type != 1 || type2 != 1)
 	    error("integer type expected for *,/,MOD");
 	if (oper == '*') {
@@ -449,37 +416,39 @@ void term1(int regnum, int *type)
 		code[code_idx - 1].adr2 *= code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(mul, regnum, regnum + 1);
+		enterprog(mul, regnum - 1, regnum);
 	} else if (oper == '/') {
 	    if (code[code_idx].op == loadimmed &&
 		code[code_idx - 1].op == loadimmed) {
 		code[code_idx - 1].adr2 /= code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(dvd, regnum, regnum + 1);
+		enterprog(dvd, regnum - 1, regnum);
 	} else if (oper == typ_mod) {
 	    if (code[code_idx].op == loadimmed &&
 		code[code_idx - 1].op == loadimmed) {
 		code[code_idx - 1].adr2 %= code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(mdl, regnum, regnum + 1);
+		enterprog(mdl, regnum - 1, regnum);
 	}
+	regnum--; /* discard register from second factor */
     }
 }
 
 /*
 expr1  ::= term1 [ ( "+" | "-" ) term1 ]
 */
-void expr1(int regnum, int *type)
+void expr1(int *type)
 {
     int oper, type2;
 
-    term1(regnum, type);
+    term1(type); /* store first factor in current register */
     while (symbol == '+' || symbol == '-') {
 	oper = symbol;
 	getsym();
-	term1(regnum + 1, &type2);
+	regnum++; /* store second factor in next register */
+	term1(&type2);
 	if (*type != 1 || type2 != 1)
 	    error("integer type expected for +,-");
 	if (oper == '+') {
@@ -488,32 +457,34 @@ void expr1(int regnum, int *type)
 		code[code_idx - 1].adr2 += code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(add, regnum, regnum + 1);
+		enterprog(add, regnum - 1, regnum);
 	} else if (oper == '-') {
 	    if (code[code_idx].op == loadimmed &&
 		code[code_idx - 1].op == loadimmed) {
 		code[code_idx - 1].adr2 -= code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(sub, regnum, regnum + 1);
+		enterprog(sub, regnum - 1, regnum);
 	}
+	regnum--; /* discard register from second factor */
     }
 }
 
 /*
 compar ::= expr1 [ ( "<" | "=" | ">" | "<>" | "<=" | ">=" ) expr1 ]
 */
-void compar(int regnum, int *type)
+void compar(int *type)
 {
     int oper, type2;
 
-    expr1(regnum, type);
+    expr1(type); /* store first factor in current register */
     while (symbol == '<' || symbol == '=' || symbol == '>' ||
 	   symbol == typ_unequal || symbol == typ_lesseql ||
 	   symbol == typ_moreeql) {
 	oper = symbol;
 	getsym();
-	expr1(regnum + 1, &type2);
+	regnum++; /* store second factor in next register */
+	expr1(&type2);
 	if (*type != type2)
 	    error("same type expected in comparison");
 	*type = 0;
@@ -524,7 +495,7 @@ void compar(int regnum, int *type)
 					  code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(lss, regnum, regnum + 1);
+		enterprog(lss, regnum - 1, regnum);
 	} else if (oper == '=') {
 	    if (code[code_idx].op == loadimmed &&
 		code[code_idx - 1].op == loadimmed) {
@@ -532,7 +503,7 @@ void compar(int regnum, int *type)
 					  code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(eql, regnum, regnum + 1);
+		enterprog(eql, regnum - 1, regnum);
 	} else if (oper == '>') {
 	    if (code[code_idx].op == loadimmed &&
 		code[code_idx - 1].op == loadimmed) {
@@ -540,7 +511,7 @@ void compar(int regnum, int *type)
 					  code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(gtr, regnum, regnum + 1);
+		enterprog(gtr, regnum - 1, regnum);
 	} else if (oper == typ_unequal) {
 	    if (code[code_idx].op == loadimmed &&
 		code[code_idx - 1].op == loadimmed) {
@@ -548,7 +519,7 @@ void compar(int regnum, int *type)
 					  code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(neq, regnum, regnum + 1);
+		enterprog(neq, regnum - 1, regnum);
 	} else if (oper == typ_lesseql) {
 	    if (code[code_idx].op == loadimmed &&
 		code[code_idx - 1].op == loadimmed) {
@@ -556,7 +527,7 @@ void compar(int regnum, int *type)
 					  code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(leq, regnum, regnum + 1);
+		enterprog(leq, regnum - 1, regnum);
 	} else if (oper == typ_moreeql) {
 	    if (code[code_idx].op == loadimmed &&
 		code[code_idx - 1].op == loadimmed) {
@@ -564,22 +535,24 @@ void compar(int regnum, int *type)
 					  code[code_idx].adr2;
 		code_idx--;
 	    } else
-		enterprog(geq, regnum, regnum + 1);
+		enterprog(geq, regnum - 1, regnum);
 	}
+	regnum--; /* discard register from second factor */
     }
 }
 
 /*
 term2  ::= compar [ "AND" compar ]
 */
-void term2(int regnum, int *type)
+void term2(int *type)
 {
     int type2;
 
-    compar(regnum, type);
+    compar(type); /* store first factor in current register */
     while (symbol == typ_and) {
 	getsym();
-	compar(regnum + 1, &type2);
+	regnum++; /* store second factor in next register */
+	compar(&type2);
 	if (*type != 0 || type2 != 0)
 	    error("boolean types expected for operator and");
 	if (code[code_idx].op == loadimmed &&
@@ -587,21 +560,23 @@ void term2(int regnum, int *type)
 	    code[code_idx - 1].adr2 &= code[code_idx].adr2;
 	    code_idx--;
 	} else
-	    enterprog(mul, regnum, regnum + 1);	/* no 'and' available */
+	    enterprog(mul, regnum - 1, regnum); /* no 'and' avail */
+	regnum--; /* discard register from second factor */
     }
 }
 
 /*
 sexpr  ::= term2 [ "OR" term2 ]
 */
-void sexpr(int regnum, int *type)
+void sexpr(int *type)
 {
     int type2;
 
-    term2(regnum, type);
+    term2(type); /* store first factor in current register */
     while (symbol == typ_or) {
 	getsym();
-	term2(regnum + 1, &type2);
+	regnum++; /* store second factor in next register */
+	term2(&type2);
 	if (*type != 0 || type2 != 0)
 	    error("boolean types expected for operator or");
 	if (code[code_idx].op == loadimmed &&
@@ -609,24 +584,27 @@ void sexpr(int regnum, int *type)
 	    code[code_idx - 1].adr2 |= code[code_idx].adr2;
 	    code_idx--;
 	} else
-	    enterprog(orr, regnum, regnum + 1);
+	    enterprog(orr, regnum - 1, regnum);
+	regnum--; /* discard register from second factor */
     }
 }
 
 /*
 expr2  ::= sexpr [ "IFF" sexpr ]
 */
-void expr2(int regnum, int *type)
+void expr2(int *type)
 {
-    sexpr(regnum, type);
+    sexpr(type); /* store first factor in current register */
     while (symbol == typ_iff) {
 	getsym();
-	sexpr(regnum + 1, type);
+	regnum++; /* store second factor in next register */
+	sexpr(type);
+	regnum--; /* discard register from second factor */
 	/* not sure what code to generate */
     }
 }
 
-void statementseq(int, int *);
+void statementseq(int *);	/* forward */
 
 /*
 statement ::=	variable ":=" expr2 |
@@ -635,7 +613,7 @@ statement ::=	variable ":=" expr2 |
 		"IF" expr2 "THEN" statementseq "ENDIF" |
 		"WHILE" expr2 "DO" statementseq "ENDWHILE"
 */
-void statement(int regnum, int *type)
+void statement(int *type)
 {
     int index, found, type2, target[2];
 
@@ -646,7 +624,7 @@ void statement(int regnum, int *type)
 	getsym();
 	if (symbol == typ_assign) {
 	    getsym();
-	    expr2(regnum, &type2);
+	    expr2(&type2);
 	    if (*type != type2)
 		error("same type expected in assignment");
 	    if (found == 1)
@@ -660,14 +638,14 @@ void statement(int regnum, int *type)
 	}
     } else if (symbol == typ_write) {
 	getsym();
-	expr2(regnum, type);
+	expr2(type);
 	if (*type == 0)
 	    enterprog(writebool, 0, regnum);
 	else if (*type == 1)
 	    enterprog(writeint, 0, regnum);
     } else if (symbol == typ_if) {
 	getsym();
-	expr2(regnum, type);
+	expr2(type);
 	if (*type != 0)
 	    error("boolean condition expected in if");
 	if (symbol != typ_then)
@@ -675,7 +653,7 @@ void statement(int regnum, int *type)
 	enterprog(jiz, 0, regnum);
 	target[0] = code_idx;			/* to be fixed */
 	getsym();
-	statementseq(regnum, type);
+	statementseq(type);
 	if (symbol != typ_endif)
 	    error("ENDIF expected at end of if statement");
 	code[target[0]].adr1 = code_idx + 1;	/* fixing */
@@ -683,7 +661,7 @@ void statement(int regnum, int *type)
     } else if (symbol == typ_while) {
 	getsym();
 	target[0] = code_idx + 1;		/* target of jump */
-	expr2(regnum, type);
+	expr2(type);
 	if (*type != 0)
 	    error("boolean condition expected in while");
 	if (symbol != typ_do)
@@ -691,7 +669,7 @@ void statement(int regnum, int *type)
 	enterprog(jiz, 0, regnum);
 	target[1] = code_idx;			/* to be fixed */
 	getsym();
-	statementseq(regnum, type);
+	statementseq(type);
 	if (symbol != typ_endwhile)
 	    error("ENDWHILE expected at end of while statement");
 	enterprog(jmp, target[0], 0);
@@ -703,12 +681,12 @@ void statement(int regnum, int *type)
 /*
 statementseq ::= statement [ ";" statement ]
 */
-void statementseq(int regnum, int *type)
+void statementseq(int *type)
 {
-    statement(regnum, type);
+    statement(type);
     while (symbol == ';') {
 	getsym();
-	statement(regnum, type);
+	statement(type);
 	/* no extra code needs to be generated for sequential evaluation */
     }
 }
@@ -716,12 +694,12 @@ void statementseq(int regnum, int *type)
 /*
 body ::= "BEGIN" statementseq "END"
 */
-void body(int regnum, int *type)
+void body(int *type)
 {
     if (symbol != typ_begin)
 	error("BEGIN expected at start of body");
     getsym();
-    statementseq(regnum, type);
+    statementseq(type);
     if (symbol != typ_end)
 	error("END expected at end of body");
     getsym();
@@ -736,7 +714,7 @@ program ::= [ ( "BOOLEAN" | "INTEGER" ) [ identifier ] |
 */
 void program()
 {
-    int type, index, found, type2, target, regnum = 0;
+    int type, index, found, type2, target;
 
     getsym();
     while (symbol == typ_boolean || symbol == typ_integer ||
@@ -777,7 +755,7 @@ void program()
 		} while (symbol == typ_variable);
 	    }
 	    functions[target].parm = 2 + local_idx - index;
-	    body(regnum, &type);
+	    body(&type);
 	    local_idx = index;
 	    enterprog(ret, 0, 0);
 	}
@@ -785,7 +763,7 @@ void program()
     code[1].op = cal;
     code[1].adr1 = code_idx + 1;
     code[1].adr2 = global_idx;
-    body(regnum, &type);
+    body(&type);
     if (symbol != '.')
 	error("full stop expected at end of program");
     enterprog(hlt, 0, 0);
@@ -795,13 +773,17 @@ void program()
     This program writes to stdout that is then transformed to a binary file
     by the dump program.
 */
-int main()
+int main(int argc, char *argv[])
 {
     int i;
 
+    if (argc == 2 && !freopen(argv[1], "r", stdin)) {
+	fprintf(stderr, "failed to open the file '%s'.\n", argv[1]);
+	exit(EXIT_FAILURE);
+    }
     program();
     for (i = 1; i <= code_idx; i++)
 	printf("%8d%15s%12" PRId64 "%12" PRId64 "\n",
 		i, operator_NAMES[code[i].op], code[i].adr1, code[i].adr2);
-    return 0;
+    exit(EXIT_SUCCESS);
 }
