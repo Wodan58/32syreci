@@ -7,11 +7,15 @@ on:
     branches: [ "main" ]
 
   workflow_dispatch:
-  
+
 jobs:
   build:
-
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        type: [Release]
+        compiler: [default]
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v3
